@@ -1,0 +1,10 @@
+name = "LEWARE"
+version = "0.1.0"
+defaultTargets = ["leware"]
+
+[[lean_lib]]
+name = "LEWARE"
+
+[[lean_exe]]
+name = "leware"
+root = "Main"
