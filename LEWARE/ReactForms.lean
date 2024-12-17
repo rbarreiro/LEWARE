@@ -3,17 +3,30 @@ import LEWARE.ReactPrims
 
 inductive Form : Ltype → Type where
   | simpleString : Form Ltype.string
---  | custom : ((Lexp react e (.option α) → Lexp react e .unit) → Lexp react e .node) → Form α
+
+def formComponentAttrs (α : Ltype) : Ltype :=
+  .list (.sum [("defaultValue", α), ("onChange", α ⟶ .unit)])
 
 def makeFormComponents
       (form : Form α)
-        (start : Lexp react e (.option α))
-          (onchange : Lexp react e (.option α) → Lexp react e .unit)
-            : Lexp react e .node :=
-  match form with
-    | .simpleString => sorry
+        : Lexp react e (formComponentAttrs α ⟶ .node) :=
+  func props =>
+    match form with
+      | .simpleString =>
+          textInput @@
+            (
+              LFunctor.map @@
+              (func p => lmatch (&p) lwith {
+                || defaultValue x => cons(defaultValue, &x),
+                || onChange x => cons(onChange, &x)
+              }) @@
+              &props
+            )
+
+def formAttrs (α : Ltype) : Ltype :=
+  .list (.sum [("defaultValue", α), ("onSubmit", option α ⟶ .unit)])
 
 def makeForm (form : Form α)
-               (onsubmit : Lexp react e (.option α) → Lexp react e .unit)
-                  : Lexp react e .node :=
-  sorry
+                  : Lexp react e (formAttrs α ⟶ .node) :=
+  func props =>
+    sorry

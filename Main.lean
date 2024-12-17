@@ -32,24 +32,25 @@ def server := #server [schema]{
     {
       name := "userMessage",
       args := [("message", .string), ("chatId", .string)],
-      res := .option .string,
+      res := option .string,
       roles := .roles ["user", "admin"]
     }
     (
-      llet "_" ::: InsertResTy :=
-        insertIdValue
-          var("chatMessage")
-          (t2 var("chatId") uuid)
-          r{"timestamp" = now, "content" = cons("userMessage", r{"text" = var("message") } ) };
+      llet x ::: InsertResTy :=
+        insertIdValue @@
+          &chatMessage @@
+          (t2 @@ &chatId @@ uuid) @@
+          r{"timestamp" = now, "content" = cons(userMessage, r{"text" = &message } ) };
       none
     )
 }
 
-def app := #app [server]{
 
+def app := #app [server] {
+    (.root, text @@ "ola")
 }
 
-def main : IO Unit :=
-  IO.println $ escape_string "Hello!\nyou"
+#eval genApp app
 
-#eval main
+def main : IO Unit :=
+  IO.println $ "Hello!\nyou"
