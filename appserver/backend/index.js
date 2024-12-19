@@ -10,10 +10,10 @@ var connection = null;
 r.connect( {host: 'rethinkdb', port: 28015}, function(err, conn) {
     if (err) throw err;
     r.branch(
-        r.db_list().contains("appserver").not(), 
+        r.dbList().contains("appserver").not(), 
         [
-            r.db_create("appserver"),
-            r.db("appserver").table_create("apps")
+            r.dbCreate("appserver"),
+            r.db("appserver").tableCreate("apps")
         ]
     ).run(conn, (err, res)=>{
         if (err) throw err;
