@@ -4,9 +4,9 @@ const port = 3000
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger-output.json');
 
-app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-app.get('/list-apps', (req, res) => {
+app.get('/', (req, res) => {
   res.send('Hello World!')
 })
 
