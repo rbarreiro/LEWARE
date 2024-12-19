@@ -11,4 +11,5 @@ services:
       - 6403:8080
 
 volumes:
-  leware_database
+  leware_database:
+  
