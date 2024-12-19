@@ -3,7 +3,7 @@ const Joi = require('joi');
 const app = express();
 const port = 3000;
 const swaggerUi = require('swagger-ui-express');
-const swaggerDocument = require('./swagger-output.json');
+const swaggerDocument = require('./swagger.json');
 const r = require('rethinkdb');
 
 var connection = null;
@@ -41,12 +41,12 @@ const newappSchema = Joi.object({
     services : Joi.string().required()
 });
 
-app.put('/newapp', (req, res) => {
+app.post('/upsertapp', (req, res) => {
     const { error, value } = newappSchema.validate(req.body);
     if (error) {
         return res.status(400).send(error.details[0].message);
     }
-    r.db('appserver').table("apps").insert(value)
+    r.db('appserver').table("apps").replace(value)
     .run(connection, (err, r)=>{
         if (err) throw err;
         res.send(r)

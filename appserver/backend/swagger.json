@@ -1,0 +1,84 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "version": "1.0.0",
+    "title": "AppServer API",
+    "description": "API for managing apps in RethinkDB"
+  },
+  "host": "localhost:3000",
+  "basePath": "/",
+  "schemes": ["http"],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Retrieve app names",
+        "description": "Returns an array of app names stored in the database.",
+        "produces": ["application/json"],
+        "responses": {
+          "200": {
+            "description": "A list of app names",
+            "schema": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/upsertapp": {
+      "post": {
+        "summary": "Upsert an app",
+        "description": "Creates or updates an app in the database.",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "page": { "type": "string" },
+                "services": { "type": "string" }
+              },
+              "required": ["id", "page", "services"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App successfully upserted",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "replaced": { "type": "integer" },
+                "unchanged": { "type": "integer" },
+                "skipped": { "type": "integer" },
+                "deleted": { "type": "integer" },
+                "errors": { "type": "integer" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {}
+}
