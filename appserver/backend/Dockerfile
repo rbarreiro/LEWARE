@@ -7,6 +7,6 @@ RUN npm install
 
 COPY . /app/
 
-RUN [ "npm", "run", "swagger" ]
+RUN [ "npm", "run", "start-gendoc" ]
 
-CMD [ "npm", "run" ]
+CMD [ "npm", "run", "start" ]
