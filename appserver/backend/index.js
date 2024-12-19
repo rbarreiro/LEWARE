@@ -33,14 +33,18 @@ app.get('/', (req, res) => {
     })
 })
 
-const newappSchema = Joi.object({name : Joi.string().required(), "def" : Joi.string().required()});
+const newappSchema = Joi.object({
+    id : Joi.string().required(), 
+    page : Joi.string().required(),
+    services : Joi.string().required()
+});
 
 app.put('/newapp', (req, res) => {
     const { error, value } = newappSchema.validate(req.body);
     if (error) {
         return res.status(400).send(error.details[0].message);
     }
-    r.db('appserver').table("apps").insert({id : value.name, def : value.def})
+    r.db('appserver').table("apps").insert(value)
 });
 
 
