@@ -9,11 +9,13 @@ deriving Repr
 structure ToJsState where
   declarations : List String
   usedNames : List String
+  uid : Nat
 deriving Repr
 
 def initS : ToJsState :=
   { declarations := []
   , usedNames := []
+  , uid := 0
   }
 
 def escape_string (s : String) : String :=
@@ -25,6 +27,12 @@ def escape_string (s : String) : String :=
    "\"" ++ String.foldl f "" s ++ "\""
 
 abbrev CodeGen (x : Type) : Type := StateT ToJsState (Except String) x
+
+def uid : CodeGen Nat :=
+  modifyGet (λ s => (s.uid + 1, {s with uid := s.uid + 1}))
+
+def mkName : CodeGen String :=
+  ("lvar" ++ toString .) <$> uid
 
 def addDep : Dependency → CodeGen Unit
   | .declaration n x =>
@@ -44,27 +52,15 @@ def addDeps : List Dependency → CodeGen Unit
 
 mutual
 
-  def toJSRecordLit (e : Lexp (.js v) e α) : CodeGen (Option (List String)) :=
-    match e with
-    | .recordnil =>
-      return some []
-    | .recordcons n x xs =>
-      do
-        let x_ <- toJS x
-        let xs_ <- toJSRecordLit xs
-        match xs_ with
-          | .none => return none
-          | .some xs__ => return some (s!"{n}: {x_}" :: xs__)
-    | _ =>
-      return none
-
-  def matchToJS : LMatch (.js v) e ts β → CodeGen String
+  def matchToJS (val :String) (m : LMatch (.js v) e ts β) : CodeGen String :=
+    match m with
     | .matchnil =>
-      return ""
+      return "undefined"
     | .matchcons rs n v x =>
       do
-        let x_ <- toJS x
-        sorry
+        let x_ ← toJS x
+        let rs_ ← matchToJS val rs
+        return s!"{val}.hasOwnProperty({n}) ? ({v} => {x_})({val}[{n}]) : ({rs_})"
 
   def toJS : (e : Lexp (.js v) e α) → CodeGen String
     | .lit l =>
@@ -74,7 +70,7 @@ mutual
       do
         let v_ <- toJS v
         let b_ <- toJS b
-        return s!"const {n} = {v_};\n {b_}"
+        return s!"({n} => {b_})({v_})"
     | .var n _ =>
       return n
     | .app f x =>
@@ -94,17 +90,9 @@ mutual
       return "Immutable.Map()"
     | .recordcons n x xs =>
       do
-        let w <- toJSRecordLit (.recordcons n x xs)
-        match w with
-          | .none =>
-            do
-              let x_ <- toJS x
-              let xs_ <- toJS xs
-              return s!"{xs_}.set({n}, {x_})"
-          | .some ls =>
-            let args := String.intercalate "," ls
-            let args := "{" ++ args ++ "}"
-            return s!"Immutable.Map({args})"
+        let x_ <- toJS x
+        let xs_ <- toJS xs
+        return s!"{xs_}.set({n}, {x_})"
     | .mk k v _ =>
       do
         let v_ <- toJS v
@@ -114,37 +102,34 @@ mutual
         let b_ <- toJS b
         return s!"function({n})" ++ "{" ++ s!"return {b_}" ++ "}"
     | .lmatch x m =>
-      sorry
+      do
+        let x_ ← toJS x
+        let n ← mkName
+        let m_ ← matchToJS n m
+        return s!"({n} => {m_})({x_})"
     | .prim deps d =>
       do
         addDeps deps
         return d
     | .primWithExp2Decl deps n t x y d =>
-      sorry
+      do
+        let x_ ← toJS x
+        let y_ ← toJS y
+        let repl : String → String := λ x => (x.replace "{arg1}" x_).replace "{arg2}" y_
+        addDeps (.declaration (repl n) (repl t) :: deps)
+        return repl d
 end
 
 mutual
-  def toRethinkRecordLit (e : Lexp .rethinkdb e α) : CodeGen (Option (List String)) :=
-    match e with
-    | .recordnil =>
-      return some []
-    | .recordcons n x xs =>
-      do
-        let x_ <- toRethink x
-        let xs_ <- toRethinkRecordLit xs
-        match xs_ with
-          | .none => return none
-          | .some xs__ => return some (n :: (x_ :: xs__))
-    | _ =>
-      return none
-
-  def matchToRethink : LMatch (.js v) e ts β → CodeGen String
+  def matchToRethink (val :String) (m : LMatch .rethinkdb e ts β) : CodeGen (List String) :=
+    match m with
     | .matchnil =>
-      return ""
+      return []
     | .matchcons rs n v x =>
       do
-        let x_ <- toJS x
-        sorry
+        let x_ ← toRethink x
+        let rs_ ← matchToRethink val rs
+        return s!"{val}.hasFields({n}), {val}.getField({n}).do({v} => {x_})" :: rs_
 
   def toRethink : (e : Lexp .rethinkdb e α) → CodeGen String
     | .lit l =>
@@ -154,7 +139,7 @@ mutual
       do
         let v_ <- toRethink v
         let b_ <- toRethink b
-        return s!"{v_}.do(({n}=> ({b_})))"
+        return s!"{v_}.do(({n} => ({b_})))"
     | .var n _ =>
       return n
     | .app f x =>
@@ -174,16 +159,9 @@ mutual
       return "r.expr({})"
     | .recordcons n x xs =>
       do
-        let w <- toRethinkRecordLit (.recordcons n x xs)
-        match w with
-          | .none =>
-            do
-              let x_ <- toRethink x
-              let xs_ <- toRethink xs
-              return s!"{xs_}.coerceTo('array').append([{n}, {x_}]).coerceTo('object')"
-          | .some ls =>
-            let args := String.intercalate "," ls
-            return s!"r.object({args})"
+        let x_ <- toRethink x
+        let xs_ <- toRethink xs
+        return s!"{xs_}.coerceTo('array').append([{n}, {x_}]).coerceTo('object')"
     | .mk k v _ =>
       do
         let v_ <- toRethink v
@@ -193,13 +171,23 @@ mutual
         let b_ <- toRethink b
         return s!"function({n})" ++ "{" ++ s!"return {b_}" ++ "}"
     | .lmatch x m =>
-      sorry
+      do
+        let x_ ← toRethink x
+        let n ← mkName
+        let m_ ← matchToRethink n m
+        let bs := String.intercalate ", " m_
+        return s!"({n} => r.branch({bs}))({x_})"
     | .prim deps d =>
       do
         addDeps deps
         return d
     | .primWithExp2Decl deps n t x y d =>
-      sorry
+      do
+        let x_ ← toRethink x
+        let y_ ← toRethink y
+        let repl : String → String := λ x => (x.replace "{arg1}" x_).replace "{arg2}" y_
+        addDeps (.declaration (repl n) (repl t) :: deps)
+        return repl d
 end
 
 
@@ -219,49 +207,40 @@ def genSchemaMigration (schemaDef : SchemaDef σ) : CodeGen String :=
   do
     let q : Lexp .rethinkdb [] .unit := genSchemaMigrationQuery schemaDef
     let qs <- toRethink q
-    return s!"{qs}.run(connection, function(err, result)\{})"
+    return s!"{qs}.run(connection, function(err, result)\{console.log(err, result)})"
 
 def genServer (server : Server sch srvs) : CodeGen String :=
-  match server with
-    | .addService rest service =>
-      do
-        let rest_ <- genServer rest
-        return rest_
-    | .base schema =>
-      genSchemaMigration schema
+  do
+    let z ← match server with
+              | .addService rest service =>
+                do
+                  let rest_ <- genServer rest
+                  return rest_
+              | .base schema =>
+                genSchemaMigration schema
+    return "" ++ z
 
-def genApp_ (app : ReactApp) : CodeGen GeneratedApp :=
+def genApp (app : ReactApp) : Except String GeneratedApp :=
   match app with
     | .mk server paths router =>
+      match (genServer server).run initS with
+        | .ok x => .ok { server := (String.intercalate "\n" x.snd.declarations) ++ "\n\n" ++ x.fst
+                       , client := ""
+                       }
+        | .error x => .error x
+
+def writeApp (folder : String) (app : ReactApp) : IO Unit :=
+  match genApp app with
+    | .ok a =>
       do
-        let server_ <- genServer server
-        return {server := "", client := ""}
+        IO.FS.writeFile s!"{folder}/server.js" a.server
+    | .error x =>
+      IO.println x
 
 
+/-
 def genApp (app : ReactApp) : Except String GeneratedApp :=
   match (genApp_ app).run initS with
     | .ok x => .ok x.fst
     | .error x => .error x
-
-/-
-def genReactDef : ReactDef servs e name fs β → CodeGen String
-  | .widget name args body =>
-    do
-      let b <- toJS body
-      let b_ := "{\n return " ++ b ++ "\n}"
-      return s!"function {name}(){b_}"
-  | .function name args body =>
-    do
-      let b <- toJS body
-      let b_ := "{\n return " ++ b ++ "\n}"
-      return s!"function {name}(){b_}"
-
-def genReactApp : ReactApp servs e → CodeGen String
-  | .appnil _ =>
-    return ""
-  | .appcons x y =>
-    do
-      let x_ <- genReactApp x
-      let y_ <- genReactDef y
-      return x_ ++ "\n\n" ++ y_
 -/

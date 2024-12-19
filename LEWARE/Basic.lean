@@ -228,32 +228,6 @@ macro_rules
   | `(#server[$z]{$x}) => `(Server.addService (Server.base $z) $x)
   | `(#server[$z]{$xs:term,*, $x}) => `(Server.addService #server[$z]{$xs,*} $x)
 
-/-
-inductive ReactDef : List ServiceTy → Env → String → List (String × Ltype) → Ltype → Type where
-  | widget : (name : String) →
-                (fs : List (String × Ltype)) →
-                  Lexp react (fs ++ e) .node →
-                    ReactDef servs e name fs .node
-  | function : (name : String) →
-                (fs : List (String × Ltype)) →
-                  Lexp react (fs ++ e) β →
-                    ReactDef servs e name fs β
-deriving Repr
-
-inductive ReactApp : List ServiceTy → Env → Type where
-  | appnil : Server σ servs → ReactApp servs []
-  | appcons : ReactApp servs d → ReactDef servs d name fs β →
-                ReactApp servs ((name, Ltype.record fs ⟶ β) :: d)
-deriving Repr
-
-syntax (priority := high) "#app" "[" term "]" "{" term,* "}" : term
-macro_rules
-  | `(#app[$z]{}) => `(ReactApp.appnil $z)
-  | `(#app[$z]{$x}) => `(ReactApp.appcons (ReactApp.appnil $z) $x)
-  | `(#app[$z]{$xs:term,*, $x}) => `(ReactApp.appcons #app[$z]{$xs,*} $x)
-
--/
-
 inductive AppPath where
   | root : AppPath
 

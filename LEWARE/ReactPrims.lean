@@ -81,17 +81,18 @@ def form : Lexp react e (.list formProps ⟶ .list .node ⟶ .node) :=
       &children
 
 def widget (init : Lexp react e σ)
-              (body : Lexp react ([("props", .list (.sum ts)), ("state", σ), ("setState", σ ⟶ .unit)] ++ e) .node)
-                : Lexp react e (.list (.sum ts) ⟶ .node) :=
+              (name : String)
+                (body : Lexp react ([("props", .list (.sum ts)), ("state", σ), ("setState", σ ⟶ .unit)] ++ e) .node)
+                  : Lexp react e (.list (.sum ts) ⟶ .node) :=
   .primWithExp2Decl
     []
-    "Widget_{uid}"
+    s!"Widget_{name}"
     (
-      "function Widget_{uid}({props}){\n" ++
+      s!"function Widget_{name}" ++ "({props}){\n" ++
       " const [state, setState] = useState({arg1});\n" ++
       " return {arg2};\n" ++
       "}\n\n"
     )
     init
     body
-    "(props => React.createElement('Widget_{uid}', {props: props}, []))"
+    (s!"(props => React.createElement('Widget_{name}'" ++ ", {props: props}, []))")

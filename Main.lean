@@ -1,4 +1,5 @@
 import LEWARE
+--import Curl
 
 def schema :=
   SchemaDef.new "caaty"
@@ -50,7 +51,9 @@ def app := #app [server] {
     (.root, text @@ "ola")
 }
 
-#eval genApp app
-
 def main : IO Unit :=
-  IO.println $ "Hello!\nyou"
+  do
+    let output ← IO.Process.run { cmd := "curl", args:= #["--help"] }
+    IO.println output
+
+#eval main
