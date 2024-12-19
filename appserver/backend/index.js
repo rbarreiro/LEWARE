@@ -14,7 +14,8 @@ r.connect( {host: 'rethinkdb', port: 28015}, function(err, conn) {
         [
             r.dbCreate("appserver"),
             r.db("appserver").tableCreate("apps")
-        ]
+        ],
+        null
     ).run(conn, (err, res)=>{
         if (err) throw err;
         console.log(res)
