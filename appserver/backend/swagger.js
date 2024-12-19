@@ -7,6 +7,7 @@ const doc = {
   info: {
     title: 'App Server',
   },
+  host : ""
 };
 
 swaggerAutogen(outputFile, routes, doc);
