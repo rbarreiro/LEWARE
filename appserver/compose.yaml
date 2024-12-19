@@ -3,9 +3,12 @@ services:
     build:
       context: backend
 
-  caatyew_rethinkdb:
+  rethinkdb:
     image: rethinkdb:latest
     volumes:
-      - redrink_database:/data
+      - leware_database:/data
     ports:
       - 6403:8080
+
+volumes:
+  leware_database
