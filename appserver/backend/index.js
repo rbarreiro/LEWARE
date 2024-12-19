@@ -29,9 +29,9 @@ app.use(express.json());
 
 app.get('/', (req, res) => {
     r.db("appserver").table("apps").pluck("name").coerceTo('array')
-    .run(connection, (err, res)=>{
+    .run(connection, (err, r)=>{
         if (err) throw err;
-        res.send(res)
+        res.send(r)
     })
 })
 
@@ -47,9 +47,9 @@ app.put('/newapp', (req, res) => {
         return res.status(400).send(error.details[0].message);
     }
     r.db('appserver').table("apps").insert(value)
-    .run(connection, (err, res)=>{
+    .run(connection, (err, r)=>{
         if (err) throw err;
-        res.send(res)
+        res.send(r)
     })
 });
 
