@@ -9,13 +9,17 @@ const r = require('rethinkdb');
 const pages = {};
 
 function onAppChanges(conn){
-    r.db("appserver").table("apps").changes({includeInitial : true}).run(conn, (err, cursor)=>{
+    r.db("appserver").table("apps").wait().run(conn, (err, res)=>{
         if (err) throw err;
-        cursor.each((err, row)=>{
+        r.db("appserver").table("apps")
+        .changes({includeInitial : true}).run(conn, (err, cursor)=>{
             if (err) throw err;
-            pages[row.new_val.id] = row.new_val.page;      
-        })
-    })
+            cursor.each((err, row)=>{
+                if (err) throw err;
+                pages[row.new_val.id] = row.new_val.page;      
+            })
+        });
+    });
 }
 
 
