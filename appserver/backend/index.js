@@ -9,7 +9,7 @@ const r = require('rethinkdb');
 const pages = {};
 
 function onAppChanges(conn){
-    r.db("appserver").table("apps").changes(includeInitial = True).run(conn, (err, cursor)=>{
+    r.db("appserver").table("apps").changes(includeInitial = true).run(conn, (err, cursor)=>{
         if (err) throw err;
         cursor.each((err, row)=>{
             if (err) throw err;
