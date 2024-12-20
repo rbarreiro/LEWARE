@@ -5,7 +5,7 @@
     "title": "AppServer API",
     "description": "API for managing apps in RethinkDB"
   },
-  "host": "localhost:3000",
+  "host": "",
   "basePath": "/",
   "schemes": ["http"],
   "paths": {
