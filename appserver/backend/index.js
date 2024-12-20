@@ -28,7 +28,7 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use(express.json());
 
 app.get('/', (req, res) => {
-    r.db("appserver").table("apps").pluck("name").coerceTo('array')
+    r.db("appserver").table("apps").pluck("id").coerceTo('array')
     .run(connection, (err, r)=>{
         if (err) throw err;
         res.send(r)
