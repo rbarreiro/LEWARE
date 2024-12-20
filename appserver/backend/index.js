@@ -6,6 +6,19 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger.json');
 const r = require('rethinkdb');
 
+const pages = {};
+
+function onAppChanges(conn){
+    r.db("appserver").table("apps").changes(includeInitial = True).run(conn, (err, cursor)=>{
+        if (err) throw err;
+        cursor.each((err, row)=>{
+            if (err) throw err;
+            pages[row.new_val.id] = row.new_val.page;      
+        })
+    })
+}
+
+
 var connection = null;
 r.connect( {host: 'rethinkdb', port: 28015}, function(err, conn) {
     if (err) throw err;
@@ -19,8 +32,9 @@ r.connect( {host: 'rethinkdb', port: 28015}, function(err, conn) {
     ).run(conn, (err, res)=>{
         if (err) throw err;
         console.log(res)
+        connection = conn;
+        onAppChanges(conn);
     })
-    connection = conn;
 });
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
@@ -53,6 +67,9 @@ app.post('/upsertapp', (req, res) => {
     })
 });
 
+app.get('/app/:id', (req, res) => {
+    res.send(pages[req.params.id]);
+});
 
 app.listen(port, () => {
   console.log(`appserver listening on port ${port}`)
