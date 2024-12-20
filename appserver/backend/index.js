@@ -46,7 +46,7 @@ app.post('/upsertapp', (req, res) => {
     if (error) {
         return res.status(400).send(error.details[0].message);
     }
-    r.db('appserver').table("apps").replace(value)
+    r.db('appserver').table("apps").get(value.id).replace(value)
     .run(connection, (err, r)=>{
         if (err) throw err;
         res.send(r)
