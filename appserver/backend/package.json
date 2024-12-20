@@ -4,8 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "start-gendoc": "node swagger.js"
+    "start": "node index.js"
   },
   "author": "Rui Barreiro",
   "dependencies": {

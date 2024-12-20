@@ -7,6 +7,4 @@ RUN npm install
 
 COPY . /app/
 
-RUN [ "npm", "run", "start-gendoc" ]
-
 CMD [ "npm", "run", "start" ]
