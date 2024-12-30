@@ -28,6 +28,7 @@ function onAppChanges(conn){
                 jail.setSync('log', function(...args) {
                     console.log(...args);
                 });
+                console.log("launching server for ", row.new_val.id)
                 context.eval(row.new_val.server).then(servs=>{
                     services[row.new_val.id] = servs;
                 }).catch(err=>{
