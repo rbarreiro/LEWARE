@@ -29,11 +29,8 @@ function onAppChanges(conn){
                     console.log(...args);
                 });
                 console.log("launching server for ", row.new_val.id)
-                context.eval(row.new_val.server).then(servs=>{
-                    services[row.new_val.id] = servs;
-                }).catch(err=>{
-                    console.log(err);
-                });
+                const servs = context.evalSync(row.new_val.server);
+                services[row.new_val.id] = servs;
             })
         });
     });
