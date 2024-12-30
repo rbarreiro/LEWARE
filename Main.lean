@@ -51,9 +51,9 @@ def app := #app [server] {
     (.root, text @@ "ola")
 }
 
-def main : IO Unit :=
-  do
-    let output ← IO.Process.run { cmd := "curl", args:= #["--help"] }
-    IO.println output
+#eval genApp app
 
-#eval main
+def main : IO Unit :=
+  deployApp "teste" "http://localhost:6401/" app
+
+--#eval main

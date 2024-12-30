@@ -18,7 +18,7 @@ def initS : ToJsState :=
   , uid := 0
   }
 
-def escape_string (s : String) : String :=
+def escapeString (s : String) : String :=
   let f := λ s c => match c with
                       | '\\' => s ++ "\\\\"
                       | '\n' => s ++ "\\n"
@@ -65,7 +65,7 @@ mutual
   def toJS : (e : Lexp (.js v) e α) → CodeGen String
     | .lit l =>
       match l with
-        | .str s => return (escape_string s)
+        | .str s => return (escapeString s)
     | .llet n v b =>
       do
         let v_ <- toJS v
@@ -134,7 +134,7 @@ mutual
   def toRethink : (e : Lexp .rethinkdb e α) → CodeGen String
     | .lit l =>
       match l with
-        | .str s => return s!"r.expr({escape_string s})"
+        | .str s => return s!"r.expr({escapeString s})"
     | .llet n v b =>
       do
         let v_ <- toRethink v
@@ -220,27 +220,83 @@ def genServer (server : Server sch srvs) : CodeGen String :=
                 genSchemaMigration schema
     return "" ++ z
 
+def genPath : AppPath → CodeGen String
+  | .root =>
+    return "/"
+
+def genClient : Router e p → CodeGen String
+  | .nil =>
+    return ""
+  | .cons p x xs =>
+    do
+      let x_ <-  toJS x
+      let p_ <-  genPath p
+      let xs_ <- genClient xs
+      return s!"(<Route path=\"{p_}\">{x_}\n</Route>{xs_})"
+
+def clientTemplate (declarations : String) (client : String) : String :=
+  "
+  <!DOCTYPE html>
+  <html>
+  <body>
+    <div id=\"root\"></div>
+  </body>
+  <!-- This setup is not suitable for production. -->
+  <!-- Only use it in development! -->
+  <script src=\"https://unpkg.com/@babel/standalone/babel.min.js\"></script>
+  <script async src=\"https://ga.jspm.io/npm:es-module-shims@1.7.0/dist/es-module-shims.js\"></script>
+  <script type=\"importmap\">
+  {
+    \"imports\": {
+      \"react\": \"https://esm.sh/react?dev\",
+      \"react-dom/client\": \"https://esm.sh/react-dom/client?dev\"
+    }
+  }
+  </script>
+  <script type=\"text/babel\" data-type=\"module\">
+  import React, { StrictMode } from 'react';
+  import { createRoot } from 'react-dom/client';
+  "++ declarations ++ "\n\n" ++
+  "
+  let App = function MyApp() {
+    return (" ++ client ++
+    "
+    );
+  }
+
+
+  const root = createRoot(document.getElementById('root'));
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+  </script>
+
+  </html>
+  "
+
 def genApp (app : ReactApp) : Except String GeneratedApp :=
   match app with
-    | .mk server paths router =>
+    | .mk server _ router =>
       match (genServer server).run initS with
-        | .ok x => .ok { server := (String.intercalate "\n" x.snd.declarations) ++ "\n\n" ++ x.fst
-                       , client := ""
-                       }
+        | .ok x =>
+          match (genClient router).run initS with
+            | .ok y => .ok { server := (String.intercalate "\n" x.snd.declarations) ++ "\n\n" ++ x.fst
+                           , client := clientTemplate
+                                          (String.intercalate "\n" y.snd.declarations)
+                                          (s!"<Router><Switch>{y.fst}</Switch></Router>")
+                           }
+            | .error y => .error y
         | .error x => .error x
 
-def writeApp (folder : String) (app : ReactApp) : IO Unit :=
+def deployApp (appServerUrl : String) (name : String) (app : ReactApp) : IO Unit :=
   match genApp app with
     | .ok a =>
       do
-        IO.FS.writeFile s!"{folder}/server.js" a.server
+        let payload := "{" ++ s!"\"id\" : {escapeString name}, \"server\" : {escapeString a.server},\"page\" : {escapeString a.client}," ++ "}"
+        let url := appServerUrl ++ "/upsertapp"
+        let output ← IO.Process.run { cmd := "curl", args:= #["-X", "POST", "-d", payload, url] }
+        IO.println output
     | .error x =>
       IO.println x
-
-
-/-
-def genApp (app : ReactApp) : Except String GeneratedApp :=
-  match (genApp_ app).run initS with
-    | .ok x => .ok x.fst
-    | .error x => .error x
--/
