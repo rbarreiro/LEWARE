@@ -1,16 +1,24 @@
 services:
-  backend:
-    build:
-      context: backend
-    ports:
-      - 6401:3000
-
   rethinkdb:
     image: rethinkdb:latest
     volumes:
       - leware_database:/data
     ports:
       - 6403:8080
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sS http://localhost:8080/ > /dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: backend
+    ports:
+      - 6401:3000
+    depends_on:
+      rethinkdb:
+        condition: service_healthy
 
 volumes:
   leware_database:
