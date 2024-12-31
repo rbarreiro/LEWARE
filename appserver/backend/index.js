@@ -29,7 +29,7 @@ function onAppChanges(conn){
                     console.log(...args);
                 });
                 console.log("launching server for ", row.new_val.id)
-                context.eval(row.new_val.services).then(servs=>{
+                context.eval(row.new_val.server).then(servs=>{
                     services[row.new_val.id] = servs;
                 }).catch(err=>{
                     console.log(err);
@@ -77,7 +77,7 @@ const newappSchema = Joi.object({
 }).required();
 
 app.post('/upsertapp', (req, res) => {
-    console.log(req)
+    console.log(req.body)
     const { error, value } = newappSchema.validate(req.body);
     if (error) {
         return res.status(400).send(error.details[0].message);
