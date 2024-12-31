@@ -1,5 +1,4 @@
 import LEWARE
---import Curl
 
 def schema :=
   SchemaDef.new "caaty"
@@ -51,9 +50,9 @@ def app := #app [server] {
     (.root, text @@ "ola")
 }
 
-#eval genApp app
+--#eval genApp app
 
 def main : IO Unit :=
-  deployApp "teste" "http://localhost:6401/" app
+  deployApp "localhost" 6401 "teste" app
 
---#eval main
+#eval main

@@ -290,13 +290,13 @@ def genApp (app : ReactApp) : Except String GeneratedApp :=
             | .error y => .error y
         | .error x => .error x
 
-def deployApp (appServerUrl : String) (name : String) (app : ReactApp) : IO Unit :=
+def deployApp (host : String) (port : Nat) (name : String) (app : ReactApp) : IO Unit :=
   match genApp app with
     | .ok a =>
       do
         let payload := "{" ++ s!"\"id\" : {escapeString name}, \"server\" : {escapeString a.server},\"page\" : {escapeString a.client}," ++ "}"
-        let url := appServerUrl ++ "/upsertapp"
-        let output ← IO.Process.run { cmd := "curl", args:= #["-X", "POST", "-d", payload, url] }
+        let url := s!"http://{host}:{toString port}/upsertapp"
+        let output ← IO.Process.run { cmd := "curl.exe", args:= #["-X", "POST", "-d", payload, url] }
         IO.println output
     | .error x =>
       IO.println x
