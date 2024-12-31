@@ -295,8 +295,9 @@ def deployApp (host : String) (port : Nat) (name : String) (app : ReactApp) : IO
     | .ok a =>
       do
         let payload := "{" ++ s!"\"id\" : {escapeString name}, \"server\" : {escapeString a.server},\"page\" : {escapeString a.client}," ++ "}"
+        IO.println payload
         let url := s!"http://{host}:{toString port}/upsertapp"
-        let output ← IO.Process.run { cmd := "curl.exe", args:= #["-X", "POST", "-d", payload, url] }
+        let output ← IO.Process.run { cmd := "curl.exe", args:= #["-X", "POST", "-H", "accept: application/json", "-H", "Content-Type: application/json","-d", payload, url] }
         IO.println output
     | .error x =>
       IO.println x

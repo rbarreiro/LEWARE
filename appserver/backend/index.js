@@ -77,7 +77,7 @@ const newappSchema = Joi.object({
 }).required();
 
 app.post('/upsertapp', (req, res) => {
-    console.log(req.body)
+    console.log(req)
     const { error, value } = newappSchema.validate(req.body);
     if (error) {
         return res.status(400).send(error.details[0].message);
