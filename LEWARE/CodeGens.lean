@@ -291,7 +291,7 @@ def genApp (app : ReactApp) : Except String GeneratedApp :=
         | .error x => .error x
 
 def escapeforRun (s : String) : String :=
-  s.replace r#"\""# r#"\\\""#
+  s.replace "\\\"" "\\\\\""
 
 def deployApp (host : String) (port : Nat) (name : String) (app : ReactApp) : IO Unit :=
   match genApp app with
@@ -317,14 +317,3 @@ def deployApp (host : String) (port : Nat) (name : String) (app : ReactApp) : IO
         IO.println output
     | .error x =>
       IO.println x
-
-/-
-#eval IO.Process.run {
-  cmd := "curl.exe",
-  args:= #[ "-X", "POST"
-          , "-H", "accept: application/json"
-          , "-H", "Content-Type: application/json"
-          ,"-d", "{\"id\": \"ola\",\"page\": \" ola ' \\n  \\\\\"  \"}"
-          , "http://localhost:6401/upsertapp"]
-}
--/
