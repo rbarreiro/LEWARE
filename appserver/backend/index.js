@@ -12,27 +12,77 @@ const ivm = require('isolated-vm');
 const pages = {};
 const services = {};
 
+function runMigration(conn, context, appId, migrations, then){
+    r.db("appserver").table("migration_status").get(appId).run(conn, (err, doneMigrations)=>{
+        if (err) throw err;
+        if (res == null){
+            doneMigrations = [];
+        }
+        if (doneMigrations.length > migrations.length){
+            console.log("Migration error: ", appId, " has less migrations than expected")
+            return;
+        }
+
+        const queries = [];
+        for(let i = 0; i < migrations.length; i++){
+            if(doneMigrations.length <= i){
+                queries.push(context.evalSync(migrations[i])());                
+            }else{
+                if (doneMigrations[i] != migrations[i]){
+                    console.log("Migration error: ", appId, ", ", i, " has different migration than expected")
+                    return;
+                }
+            }
+        }
+        if(queries.length > 0){
+            queries.push(r.db("appserver").table("migration_status").get(appId).replace({id: appId, migrations: migrations}));
+            r.expr(queries).run(conn, (err, res)=>{
+                if(err) throw err;
+                then();
+            });
+        }else{
+            then();
+        }
+        
+    });
+}
+
+
 function onAppChanges(conn){
-    r.db("appserver").table("apps").wait().run(conn, (err, res)=>{
+    r.expr([r.db("appserver").table("apps").wait(), r.db("appserver").table("migration_status").wait()]).run(conn, (err, res)=>{
         if (err) throw err;
         r.db("appserver").table("apps")
         .changes({includeInitial : true}).run(conn, (err, cursor)=>{
             if (err) throw err;
             cursor.each((err, row)=>{
                 if (err) throw err;
-                pages[row.new_val.id] = row.new_val.page;      
-                const isolate = new ivm.Isolate({ memoryLimit: 128 });
-                const context = isolate.createContextSync();
-                const jail = context.global;
-                jail.setSync('global', jail.derefInto());
-                jail.setSync('log', function(...args) {
-                    console.log(...args);
-                });
-                console.log("launching server for ", row.new_val.id)
-                context.eval(row.new_val.server).then(servs=>{
-                    services[row.new_val.id] = servs;
-                }).catch(err=>{
-                    console.log(err);
+                r.branch(
+                    r.dbList().contains("app_" + row.new_val.id).not(), 
+                    r.dbCreate("app_" + row.new_val.id),
+                    null
+                ).run(conn, (err, res)=>{
+                    if (err) throw err;
+                    pages[row.new_val.id] = row.new_val.page;      
+                    const isolate = new ivm.Isolate({ memoryLimit: 128 });
+                    const context = isolate.createContextSync();
+                    const jail = context.global;
+                    jail.setSync('global', jail.derefInto());
+                    jail.setSync('console', 
+                        {
+                            log: function(...args) {
+                                console.log(...args);
+                            }
+                        }
+                    );
+                    runMigrations(conn, context, row.new_val.id, row.new_val.migrations, ()=>{
+                        console.log("launching server for ", row.new_val.id)
+                        context.eval(row.new_val.server).then(servs=>{
+                            services[row.new_val.id] = servs;
+                        }).catch(err=>{
+                            console.log(err);
+                        });
+
+                    });
                 });
             })
         });
@@ -47,7 +97,8 @@ r.connect( {host: 'rethinkdb', port: 28015}, function(err, conn) {
         r.dbList().contains("appserver").not(), 
         [
             r.dbCreate("appserver"),
-            r.db("appserver").tableCreate("apps")
+            r.db("appserver").tableCreate("apps"),
+            r.db("appserver").tableCreate("migration_status")
         ],
         null
     ).run(conn, (err, res)=>{
@@ -73,7 +124,8 @@ app.get('/', (req, res) => {
 const newappSchema = Joi.object({
     id : Joi.string().required(), 
     page : Joi.string().required(),
-    server : Joi.string().required()
+    server : Joi.string().required(),
+    migrations : Joi.array().items(Joi.string()).required(),
 }).required();
 
 app.post('/upsertapp', (req, res) => {

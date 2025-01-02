@@ -4,6 +4,7 @@ import LEWARE.Basic
 structure GeneratedApp where
   server : String
   client : String
+  migrations : List String
 deriving Repr
 
 structure ToJsState where
@@ -190,35 +191,53 @@ mutual
         return repl d
 end
 
+def getServerSchema (server : Server sch srvs) : SchemaDef sch :=
+  match server with
+    | .addService rest service =>
+      getServerSchema rest
+    | .base sch =>
+      sch
 
 def genInitDB (schemaName : String) (sch : Schema) : Lexp .rethinkdb [] .unit :=
-  llet x := dbCreate @@ "leware";
-  llet y := dbCreate @@ (.lit (.str schemaName));
   llet z := sch.foldl (λ e (n, _, _) => llet w := tableCreate @@ (.lit (.str schemaName)) @@ (.lit (.str n)) ; .relax e) unit;
   unit
 
-def genSchemaMigrationQuery (schemaDef : SchemaDef σ) : Lexp .rethinkdb [] .unit :=
-  match schemaDef with
-    | .new name sch =>
-      (elem @@ "leware" @@ dbList) ?? unit :
-        genInitDB name sch
+def genStartMigration  (name : String)  (sch : Schema) : Except String String :=
+  let q := genInitDB ("app_" ++ name) sch
+  match (toRethink q).run initS with
+    | .ok x => .ok ("function(){" ++ (String.intercalate "\n" x.snd.declarations) ++ "\n\nreturn" ++ x.fst ++ "}")
+    | .error x => .error x
 
-def genSchemaMigration (schemaDef : SchemaDef σ) : CodeGen String :=
-  do
-    let q : Lexp .rethinkdb [] .unit := genSchemaMigrationQuery schemaDef
-    let qs <- toRethink q
-    return s!"{qs}.run(connection, function(err, result)\{console.log(err, result)})"
+def genMigrations_ (schDef : SchemaDef sch) : Except String (List String) :=
+  match schDef with
+    | .new name sch =>
+      do
+        let z <- genStartMigration name sch
+        return [z]
+
+def genMigrations (server : Server sch srvs) : Except String (List String) :=
+  genMigrations_ (getServerSchema server)
+
+def genService (service : ServiceDef sch env srv) : CodeGen String :=
+  match service with
+    | .service _ x =>
+      do
+        let x_ <- toJS x
+        return x_
+    | .dbService _ x =>
+      do
+        let x_ <- toRethink x
+        return x_
 
 def genServer (server : Server sch srvs) : CodeGen String :=
-  do
-    let z ← match server with
-              | .addService rest service =>
-                do
-                  let rest_ <- genServer rest
-                  return rest_
-              | .base schema =>
-                genSchemaMigration schema
-    return "" ++ z
+  match server with
+    | .addService rest service =>
+      do
+        let rest_ <- genServer rest
+        let service_ <- genService service
+        return rest_ ++ "\n\n" ++ service_
+    | .base _ =>
+      return "{}"
 
 def genPath : AppPath → CodeGen String
   | .root =>
@@ -279,16 +298,16 @@ def clientTemplate (declarations : String) (client : String) : String :=
 def genApp (app : ReactApp) : Except String GeneratedApp :=
   match app with
     | .mk server _ router =>
-      match (genServer server).run initS with
-        | .ok x =>
-          match (genClient router).run initS with
-            | .ok y => .ok { server := (String.intercalate "\n" x.snd.declarations) ++ "\n\n" ++ x.fst
-                           , client := clientTemplate
-                                          (String.intercalate "\n" y.snd.declarations)
-                                          (s!"<Router><Switch>{y.fst}</Switch></Router>")
-                           }
-            | .error y => .error y
-        | .error x => .error x
+      do
+        let x <- (genServer server).run initS
+        let y <- (genClient router).run initS
+        let migs <- genMigrations server
+        return { server := (String.intercalate "\n" x.snd.declarations) ++ "\n\n" ++ x.fst
+               , client := clientTemplate
+                              (String.intercalate "\n" y.snd.declarations)
+                              (s!"<Router><Switch>{y.fst}</Switch></Router>")
+               , migrations := migs
+               }
 
 def escapeforRun (s : String) : String :=
   s.replace "\\\"" "\\\\\""
@@ -300,8 +319,9 @@ def deployApp (host : String) (port : Nat) (name : String) (app : ReactApp) : IO
         let name_ := escapeString name |> escapeforRun
         let server_ := escapeString a.server |> escapeforRun
         let client_ := escapeString a.client |> escapeforRun
+        let migrations_ := "[" ++ String.intercalate "," (a.migrations.map (λ x => escapeString x |> escapeforRun)) ++ "]"
         let payload := "{" ++
-                       s!"\"id\" : {name_}, \"server\" : {server_},\"page\" : {client_}" ++
+                       s!"\"id\" : {name_}, \"server\" : {server_},\"page\" : {client_}, \"migrations\" : {migrations_}" ++
                        "}"
         IO.println payload
         let url := s!"http://{host}:{toString port}/upsertapp"
