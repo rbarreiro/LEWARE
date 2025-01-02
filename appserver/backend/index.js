@@ -15,7 +15,7 @@ const services = {};
 function runMigrations(conn, context, appId, migrations, then){
     r.db("appserver").table("migration_status").get(appId).run(conn, (err, doneMigrations)=>{
         if (err) throw err;
-        if (res == null){
+        if (doneMigrations == null){
             doneMigrations = [];
         }
         if (doneMigrations.length > migrations.length){
