@@ -12,7 +12,7 @@ const ivm = require('isolated-vm');
 const pages = {};
 const services = {};
 
-function runMigration(conn, context, appId, migrations, then){
+function runMigrations(conn, context, appId, migrations, then){
     r.db("appserver").table("migration_status").get(appId).run(conn, (err, doneMigrations)=>{
         if (err) throw err;
         if (res == null){
