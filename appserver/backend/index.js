@@ -67,13 +67,9 @@ function onAppChanges(conn){
                     const context = isolate.createContextSync();
                     const jail = context.global;
                     jail.setSync('global', jail.derefInto());
-                    jail.setSync('console', 
-                        {
-                            log: function(...args) {
-                                console.log(...args);
-                            }
-                        }
-                    );
+                    jail.setSync('log', function(...args){
+                        console.log(...args);
+                    });
                     runMigrations(conn, context, row.new_val.id, row.new_val.migrations, ()=>{
                         console.log("launching server for ", row.new_val.id)
                         context.eval(row.new_val.server).then(servs=>{
@@ -103,7 +99,6 @@ r.connect( {host: 'rethinkdb', port: 28015}, function(err, conn) {
         null
     ).run(conn, (err, res)=>{
         if (err) throw err;
-        console.log(res)
         connection = conn;
         onAppChanges(conn);
     })

@@ -205,7 +205,7 @@ def genInitDB (schemaName : String) (sch : Schema) : Lexp .rethinkdb [] .unit :=
 def genStartMigration  (name : String)  (sch : Schema) : Except String String :=
   let q := genInitDB ("app_" ++ name) sch
   match (toRethink q).run initS with
-    | .ok x => .ok ("function(){" ++ (String.intercalate "\n" x.snd.declarations) ++ "\n\nreturn" ++ x.fst ++ "}")
+    | .ok x => .ok ("(function(){" ++ (String.intercalate "\n" x.snd.declarations) ++ "\n\nreturn " ++ x.fst ++ "})")
     | .error x => .error x
 
 def genMigrations_ (schDef : SchemaDef sch) : Except String (List String) :=
