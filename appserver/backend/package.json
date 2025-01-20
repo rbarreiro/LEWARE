@@ -12,7 +12,7 @@
     "joi": "^17.13.3",
     "swagger-ui-express": "^5.0.1",
     "rethinkdb": "^2.4.2",
-    "isolated-vm": "5.0.3",
-    "express-ws": "^5.0.2"
+    "express-ws": "^5.0.2",
+    "immutable": "^5.0.3"
   }
 }

@@ -36,12 +36,14 @@ def server := #server [schema]{
       roles := .roles ["user", "admin"]
     }
     (
-      llet x ::: InsertResTy :=
-        insertIdValue @@
-          &chatMessage @@
-          (t2 @@ &chatId @@ uuid) @@
-          r{"timestamp" = now, "content" = cons(userMessage, r{"text" = &message } ) };
-      none
+      .ldo {
+        llet n <- now,
+        llet u <- uuid,
+        llet r_ <- insertIdValue @@ &chatMessage @@
+          (.t2 @@ &chatId @@ &u) @@
+          r{"timestamp" = &n, "content" = cons(userMessage, r{"text" = &message } ) },
+        .iopure @@ none
+      }
     )
 }
 
@@ -55,4 +57,5 @@ def app := #app [server] {
 def main : IO Unit :=
   deployApp "localhost" 6401 "teste" app
 
-#eval main
+#eval genApp app
+--#eval main

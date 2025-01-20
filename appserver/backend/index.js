@@ -6,13 +6,48 @@ const port = 3000;
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger.json');
 const r = require('rethinkdb');
-const ivm = require('isolated-vm');
+const im = require('immutable');
 
 
 const pages = {};
 const services = {};
 
-function runMigrations(conn, context, appId, migrations, then){
+function exp2query(exp, ctxt){
+    switch(exp[0]){
+        case "ldo":
+            return exp2query(exp[1], ctxt);
+            break;
+        case "doseq":
+            return exp2query(exp[1], ctxt).do(() => exp2query(exp[2], ctxt));
+            break;
+        case "app":
+            return exp2query(exp[1], ctxt)(exp2query(exp[2],ctxt));
+            break;
+        case "lit":
+            return exp2query(exp[1], ctxt);
+            break;
+        case "str":
+            return exp2query(exp[1], ctxt);
+            break;
+        case "dobase":
+            return exp2query(exp[1], ctxt);
+            break;
+        case "iopure":
+            return x => x;
+            break;
+        case "unit":
+            return r.expr(null, ctxt);
+            break;
+        case "var":
+            return ctxt.get(exp[1]);
+            break;
+    }
+}
+
+const rethinkCtxt = im.Map({
+});
+
+function runMigrations(conn, appId, migrations, then){
     r.db("appserver").table("migration_status").get(appId).run(conn, (err, doneMigrations)=>{
         if (err) throw err;
         if (doneMigrations == null){
@@ -26,7 +61,7 @@ function runMigrations(conn, context, appId, migrations, then){
         const queries = [];
         for(let i = 0; i < migrations.length; i++){
             if(doneMigrations.length <= i){
-                queries.push(context.evalSync(migrations[i])());                
+                queries.push(exp2query(JSON.parse(migrations[i]), rethinkCtxt));                
             }else{
                 if (doneMigrations[i] != migrations[i]){
                     console.log("Migration error: ", appId, ", ", i, " has different migration than expected")
@@ -63,21 +98,8 @@ function onAppChanges(conn){
                 ).run(conn, (err, res)=>{
                     if (err) throw err;
                     pages[row.new_val.id] = row.new_val.page;      
-                    const isolate = new ivm.Isolate({ memoryLimit: 128 });
-                    const context = isolate.createContextSync();
-                    const jail = context.global;
-                    jail.setSync('global', jail.derefInto());
-                    jail.setSync('log', function(...args){
-                        console.log(...args);
-                    });
-                    runMigrations(conn, context, row.new_val.id, row.new_val.migrations, ()=>{
+                    runMigrations(conn, row.new_val.id, row.new_val.migrations, ()=>{
                         console.log("launching server for ", row.new_val.id)
-                        context.eval(row.new_val.server).then(servs=>{
-                            services[row.new_val.id] = servs;
-                        }).catch(err=>{
-                            console.log(err);
-                        });
-
                     });
                 });
             })
