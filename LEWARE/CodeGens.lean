@@ -141,7 +141,7 @@ def genApp (app : ReactApp) : GeneratedApp :=
     | .mk server _ router =>
         let migs := genMigrations server
         let client := ""
-        { server := ""
+        { server := "server"
         , client := clientTemplate
                       (s!"<Router><Switch>{client}</Switch></Router>")
         , migrations := migs

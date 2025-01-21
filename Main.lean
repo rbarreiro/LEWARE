@@ -58,4 +58,4 @@ def main : IO Unit :=
   deployApp "localhost" 6401 "teste" app
 
 #eval genApp app
---#eval main
+#eval main

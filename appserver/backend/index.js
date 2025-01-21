@@ -39,12 +39,16 @@ function exp2query(exp, ctxt){
             return r.expr(null, ctxt);
             break;
         case "var":
-            return ctxt.get(exp[1]);
+            if(ctxt.has(exp[1]))
+                return ctxt.get(exp[1]);
+            else
+                throw "Variable not found: " + exp[1];
             break;
     }
 }
 
-const rethinkCtxt = im.Map({
+const migrationCtxt = im.Map({
+    tableCreate : db => (table => (()=> r.db(db).tableCreate(table))),
 });
 
 function runMigrations(conn, appId, migrations, then){
@@ -61,7 +65,7 @@ function runMigrations(conn, appId, migrations, then){
         const queries = [];
         for(let i = 0; i < migrations.length; i++){
             if(doneMigrations.length <= i){
-                queries.push(exp2query(JSON.parse(migrations[i]), rethinkCtxt));                
+                queries.push(exp2query(JSON.parse(migrations[i]), migrationCtxt));                
             }else{
                 if (doneMigrations[i] != migrations[i]){
                     console.log("Migration error: ", appId, ", ", i, " has different migration than expected")
