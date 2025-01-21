@@ -16,35 +16,27 @@ function exp2query(exp, ctxt){
     switch(exp[0]){
         case "ldo":
             return exp2query(exp[1], ctxt);
-            break;
         case "doseq":
             return exp2query(exp[1], ctxt).do(() => exp2query(exp[2], ctxt));
-            break;
         case "app":
             return exp2query(exp[1], ctxt)(exp2query(exp[2],ctxt));
-            break;
         case "lit":
             return exp2query(exp[1], ctxt);
-            break;
         case "str":
             return exp2query(exp[1], ctxt);
-            break;
         case "dobase":
             return exp2query(exp[1], ctxt);
-            break;
         case "iopure":
             return x => x;
-            break;
         case "unit":
             return r.expr(null, ctxt);
-            break;
         case "var":
             if(ctxt.has(exp[1]))
                 return ctxt.get(exp[1]);
             else
                 throw "Variable not found: " + exp[1];
-            break;
     }
+    throw "Unknown expression: " + exp[0];
 }
 
 const migrationCtxt = im.Map({
