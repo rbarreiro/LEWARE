@@ -48,7 +48,7 @@ function exp2query(exp, ctxt){
 }
 
 const migrationCtxt = im.Map({
-    tableCreate : db => (table => (()=> r.db(db).tableCreate(table))),
+    tableCreate : db => (table => r.db(db).tableCreate(table)),
 });
 
 function runMigrations(conn, appId, migrations, then){
