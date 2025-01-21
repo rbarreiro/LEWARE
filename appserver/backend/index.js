@@ -29,7 +29,7 @@ function exp2query(exp, ctxt){
         case "iopure":
             return x => x;
         case "unit":
-            return r.expr(null, ctxt);
+            return r.expr(null);
         case "var":
             if(ctxt.has(exp[1]))
                 return ctxt.get(exp[1]);
