@@ -36,7 +36,7 @@ function exp2query(exp, ctxt){
             else
                 throw "Variable not found: " + exp[1];
     }
-    throw "Unknown expression: " + exp[0];
+    throw "Unknown expression: " + exp;
 }
 
 const migrationCtxt = im.Map({
