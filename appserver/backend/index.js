@@ -23,7 +23,7 @@ function exp2query(exp, ctxt){
         case "lit":
             return exp2query(exp[1], ctxt);
         case "str":
-            return exp2query(exp[1], ctxt);
+            return r.expr(exp[1]);
         case "dobase":
             return exp2query(exp[1], ctxt);
         case "iopure":
