@@ -47,10 +47,12 @@ const dbServiceCtxt = im.Map({
 });
 
 function runMigrations(conn, appId, migrations, then){
-    r.db("appserver").table("migration_status").get(appId).run(conn, (err, doneMigrations)=>{
+    r.db("appserver").table("migration_status").get(appId).run(conn, (err, res)=>{
         if (err) throw err;
-        if (doneMigrations == null){
+        if (res == null){
             doneMigrations = [];
+        }else{
+            doneMigrations = res.migrations;
         }
         if (doneMigrations.length > migrations.length){
             console.log("Migration error: ", appId, " has less migrations than expected")
