@@ -43,6 +43,9 @@ const migrationCtxt = im.Map({
     tableCreate : db => (table => r.db(db).tableCreate(table)),
 });
 
+const dbServiceCtxt = im.Map({
+});
+
 function runMigrations(conn, appId, migrations, then){
     r.db("appserver").table("migration_status").get(appId).run(conn, (err, doneMigrations)=>{
         if (err) throw err;
@@ -61,6 +64,8 @@ function runMigrations(conn, appId, migrations, then){
             }else{
                 if (doneMigrations[i] != migrations[i]){
                     console.log("Migration error: ", appId, ", ", i, " has different migration than expected")
+                    console.log(doneMigrations[i])
+                    console.log(migrations[i])
                     return;
                 }
             }

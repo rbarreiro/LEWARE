@@ -55,7 +55,7 @@ def app := #app [server] {
 --#eval genApp app
 
 def main : IO Unit :=
-  deployApp "localhost" 6401 "teste" app
+  deployApp "localhost" 6401 app
 
 #eval genApp app
-#eval main
+--#eval main

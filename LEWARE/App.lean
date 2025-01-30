@@ -1,5 +1,8 @@
 import LEWARE.Basic
+import Lean.Data.Json
 
+open Lean
+open Json
 
 def attr : Ltype := .tuple [.string, .sum [("stringAttr", .string), ("eventHandler", .event ⟶ .io .unit)]]
 
@@ -80,14 +83,14 @@ deriving Repr
 inductive AccessPolicy where
   | all
   | roles (list : List String)
-deriving Repr
+deriving Repr, ToJson
 
 structure ServiceTy where
   name : String
   args : Fields
   res : Ltype
   roles : AccessPolicy
-deriving Repr
+deriving Repr, ToJson
 
 
 inductive ServiceDef : Schema → Env → ServiceTy → Type where
@@ -98,6 +101,11 @@ inductive ServiceDef : Schema → Env → ServiceTy → Type where
                 Lexp (toEnv α.args ++ toEnv (schemaEnv σ) ++ e ++ dbServiceEnv) (.io α.res) →
                   ServiceDef σ e α
 deriving Repr
+
+instance : ToJson (ServiceDef σ e α) where
+  toJson
+    | ServiceDef.service α e => toJson [Json.str "service", toJson α, toJson e]
+    | ServiceDef.dbService α e => toJson [Json.str "dbService", toJson α, toJson e]
 
 abbrev servicesEnv (x : List ServiceTy) : Fields :=
   List.map (λ y => (y.name , Ltype.record y.args ⟶ y.res)) x

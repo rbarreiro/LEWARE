@@ -18,7 +18,7 @@ inductive Ltype where
   | sum (fs : List (String × Ltype))
   | func (a : Ltype) (b : Ltype)
   | event
-deriving Repr
+deriving Repr, ToJson
 
 infixr:10   " ⟶ " => Ltype.func
 
