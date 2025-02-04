@@ -38,17 +38,6 @@ def genStartMigration  (name : String)  (sch : Schema) : Lexp migrationEnv (.io 
         genStartMigration name xs
       }
 
-/-
-def genInitDB (schemaName : String) (sch : Schema) : Lexp .rethinkdb [] .unit :=
-  llet z := sch.foldl (λ e (n, _, _) => llet w := tableCreate @@ (.lit (.str schemaName)) @@ (.lit (.str n)) ; .relax e) unit;
-  unit
--/
-  --let q := genInitDB ("app_" ++ name) sch
-
---  match (toRethink q).run initS with
---    | .ok x => .ok ("(function(){" ++ (String.intercalate "\n" x.snd.declarations) ++ "\n\nreturn " ++ x.fst ++ "})")
---    | .error x => .error x
-
 def genMigrations_ (schDef : SchemaDef sch) : List String :=
   match schDef with
     | .new name sch =>
@@ -64,43 +53,27 @@ def genServices (server : Server sch srvs) : List Json :=
     | .base _ =>
       []
 
-/-
-def genService (service : ServiceDef sch env srv) : CodeGen String :=
-  match service with
-    | .service _ x =>
-      do
-        let x_ <- toJS x
-        return x_
-    | .dbService _ x =>
-      do
-        let x_ <- toRethink x
-        return x_
+def runtime : String :=
+  "
+    function lexp_istreampure(x) {
+      return (callback => callback(x));
+    }
 
-def genServer (server : Server sch srvs) : CodeGen String :=
-  match server with
-    | .addService rest service =>
-      do
-        let rest_ <- genServer rest
-        let service_ <- genService service
-        return rest_ ++ "\n\n" ++ service_
-    | .base _ =>
-      return "{}"
--/
-def genPath : AppPath → String
-  | .root =>
-      "/"
+    function text(x) {
+      return Imutable.Map({k: \"text\", v: x});
+    }
 
-/-
-def genClient : Router e p → CodeGen String
-  | .nil =>
-    return ""
-  | .cons p x xs =>
-    do
-      let x_ <-  toJS x
-      let p_ <-  genPath p
-      let xs_ <- genClient xs
-      return s!"(<Route path=\"{p_}\">{x_}\n</Route>{xs_})"
--/
+    function makeNode(x){
+      switch(x.get(k)){
+        case \"text\":
+          const n = document.createTextNode(\"\");
+          x.get(v)((y) => n.nodeValue = y);
+          return n
+        default:
+          throw \"Invalid node\";
+      }
+    }
+  "
 
 def clientTemplate (client : String) : String :=
   "
@@ -108,60 +81,21 @@ def clientTemplate (client : String) : String :=
   <html>
   <body>
     <div id=\"root\"></div>
+    <script src=\"https://cdnjs.cloudflare.com/ajax/libs/immutable/5.0.3/immutable.min.js\"
+            integrity=\"sha512-7gKzXmjcoHpm+sl09bSCRqlj8XlxpyNhjny1jur6yyqQ6Tiw6q/loRThw10PcTYnjiWeNJZOpshsbCSJT9TLYA==\"
+            crossorigin=\"anonymous\"
+            referrerpolicy=\"no-referrer\">
+    </script>
+    <script>" ++ runtime ++ "\n\n" ++
+      "const mainNode =" ++ client ++ ";
+      document.body.appendChild(makeNode(mainNode));
+    </script>
   </body>
-  <!-- This setup is not suitable for production. -->
-  <!-- Only use it in development! -->
-  <script src=\"https://unpkg.com/@babel/standalone/babel.min.js\"></script>
-  <script async src=\"https://ga.jspm.io/npm:es-module-shims@1.7.0/dist/es-module-shims.js\"></script>
-  <script type=\"importmap\">
-  {
-    \"imports\": {
-      \"react\": \"https://esm.sh/react?dev\",
-      \"react-dom/client\": \"https://esm.sh/react-dom/client?dev\"
-    }
-  }
-  </script>
-  <script src=\"https://cdn.jsdelivr.net/npm/immutable@5.0.3/dist/immutable.min.js\"></script>
-  <script type=\"text/babel\" data-type=\"module\">
-  import React, { StrictMode } from 'react';
-  import { createRoot } from 'react-dom/client';\n
-
-  let App = function MyApp() {
-    return (" ++ client ++
-    "
-    );
-  }
-
-
-  const root = createRoot(document.getElementById('root'));
-  root.render(
-    <StrictMode>
-      <App />
-    </StrictMode>
-  );
-  </script>
-
   </html>
   "
-/-
-structure ToJsState where
-  uid : Nat
-
-def initS : ToJsState :=
-  { uid := 0
-  }
-
-abbrev CodeGen (x : Type) : Type := StateM ToJsState x
-
-def uid : CodeGen Nat :=
-  modifyGet (λ s => (s.uid + 1, {s with uid := s.uid + 1}))
-
-def mkName : CodeGen String :=
-  ("lvar" ++ toString .) <$> uid
--/
 
 mutual
-  def genJSMatch : LMatch e ts β →String
+  def genJSMatch : LMatch e ts β → String
     | LMatch.matchnil => "Immutable.Map()"
     | LMatch.matchcons m n v b =>
         let b_ := genJS b
@@ -230,29 +164,21 @@ mutual
       "lexp_foldl"
     | .iopure =>
       "lexp_iopure"
+    | .istreampure =>
+      "lexp_istreampure"
     | .findTag tag props _ default =>
         let props_ := genJS props
         let default_ := genJS default
         s!"lexp_findTag({escapeString tag}, {props_}, {default_})"
 end
 
-
-def genRouter : Router e p → String
-  | .nil => ""
-  | .cons p x xs =>
-      let x_ := genJS x
-      let p_ := genPath p
-      let xs_ := genRouter xs
-      s!"<Route path=\"{p_}\">{x_}</Route>{xs_}"
-
 def genApp (app : ReactApp) : GeneratedApp :=
   match app with
-    | .mk server _ router =>
+    | .mk server page =>
         let migs := genMigrations server
-        let client := genRouter router
+        let client := genJS page
         { server := toJson (genServices server) |>.pretty
-        , client := clientTemplate
-                      (s!"<Router><Switch>{client}</Switch></Router>")
+        , client := clientTemplate client
         , migrations := migs
         }
 
@@ -261,7 +187,7 @@ def escapeforRun (s : String) : String :=
 
 def appName (app : ReactApp) : String :=
   match app with
-    | .mk server _ _ =>
+    | .mk server _ =>
       match getServerSchema server with
         | .new name _ => name
 
@@ -276,7 +202,6 @@ def deployApp (host : String) (port : Nat) (app : ReactApp) : IO Unit :=
     let payload := "{" ++
                     s!"\"id\" : {name_}, \"server\" : {server_},\"page\" : {client_}, \"migrations\" : {migrations_}" ++
                     "}"
-    IO.println payload
     let url := s!"http://{host}:{toString port}/upsertapp"
     let output ← IO.Process.run {
       cmd := "curl.exe",

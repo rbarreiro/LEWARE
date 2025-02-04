@@ -14,6 +14,7 @@ inductive Ltype where
   | tuple (xs : List Ltype)
   | list (α : Ltype)
   | io (α : Ltype)
+  | istream (α : Ltype)
   | record (fs : List (String × Ltype))
   | sum (fs : List (String × Ltype))
   | func (a : Ltype) (b : Ltype)
@@ -89,6 +90,7 @@ mutual
     | elem : Lexp e (α ⟶ .list α ⟶ .boolean)
     | foldl : Lexp e ((α ⟶ β ⟶ β) ⟶ β ⟶ .list α ⟶ β)
     | iopure : Lexp e (α ⟶ .io α)
+    | istreampure : Lexp e (α ⟶ .istream α)
     | findTag : String → Lexp e (.list (.sum ts)) → HasField ts tag α → Lexp e α → Lexp e α
   deriving Repr
 end
@@ -132,6 +134,7 @@ mutual
     | Lexp.elem => toJson [Json.str "elem"]
     | Lexp.foldl => toJson [Json.str "foldl"]
     | Lexp.iopure => toJson [Json.str "iopure"]
+    | Lexp.istreampure => toJson [Json.str "istreampure"]
     | Lexp.findTag t p v d => toJson [Json.str "findTag", toJson t, lexpToJson p, lexpToJson d]
 end
 
@@ -174,6 +177,9 @@ macro "lmatch" "(" x:term ")" y:term : term => `(Lexp.lmatch ($x) ($y))
 
 instance : Coe String (Lexp e Ltype.string) where
   coe x := .lit (.str x)
+
+instance : Coe String (Lexp e (.istream .string)) where
+  coe x := .istreampure @@ x
 
 macro c:term "??" t:term ":" e:term : term => `(Lexp.branch @@ $c @@ $t @@ $e)
 

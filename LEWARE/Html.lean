@@ -1,5 +1,6 @@
 import LEWARE.App
 
+/-
 abbrev buttonProps : Ltype := .sum [
   ("text", .string),
   ("onClick", .io .unit)
@@ -52,3 +53,4 @@ def form [SubEnv react e] : Lexp e (.list formProps ⟶ .list .node ⟶ .node) :
         &props
       ) @@
       &children
+-/

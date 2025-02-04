@@ -4,48 +4,33 @@ import Lean.Data.Json
 open Lean
 open Json
 
-def attr : Ltype := .tuple [.string, .sum [("stringAttr", .string), ("eventHandler", .event ⟶ .io .unit)]]
+def attr : Ltype := .tuple [.string, .sum [("stringAttr", .istream .string), ("eventHandler", .event ⟶ .io .unit)]]
 
 
 abbrev insertResTy := Ltype.record [("inserted", .nat)]
 
-abbrev react : Env :=
+abbrev browser : Env :=
   [ ("node", .base (.string ⟶ .list attr ⟶ .list .node ⟶ .node))
-  , ("text", .base (.string ⟶ .node))
+  , ("text", .base (.istream .string ⟶ .node))
   , ("targetValue", .base (.event ⟶ .io .string))
   , ("preventDefault", .base (.event ⟶ .io .unit))
-  , ("widget", .parametric2 (λ s p => ((p ⟶ s ⟶ (s ⟶  .io .unit) ⟶ .node) ⟶ s ⟶ p ⟶ .node)))
   ]
 
-def node [se : SubEnv react e] : Lexp e (.string ⟶ .list attr ⟶ .list .node ⟶ .node) :=
-  let p : HasVar react "node" (.string ⟶ .list attr ⟶ .list .node ⟶ .node) := by repeat constructor
+def node [se : SubEnv browser e] : Lexp e (.string ⟶ .list attr ⟶ .list .node ⟶ .node) :=
+  let p : HasVar browser "node" (.string ⟶ .list attr ⟶ .list .node ⟶ .node) := by repeat constructor
   Lexp.var "node" (se.adaptVar p)
 
-def text [se : SubEnv react e] : Lexp e (.string ⟶ .node) :=
-  let p : HasVar react "text" (.string ⟶ .node) := by repeat constructor
+def text [se : SubEnv browser e] : Lexp e (.istream .string ⟶ .node) :=
+  let p : HasVar browser "text" (.istream .string ⟶ .node) := by repeat constructor
   Lexp.var "text" (se.adaptVar p)
 
-def targetValue [se : SubEnv react e] : Lexp e (.event ⟶ .io .string) :=
-  let p : HasVar react "targetValue" (.event ⟶ .io .string) := by repeat constructor
+def targetValue [se : SubEnv browser e] : Lexp e (.event ⟶ .io .string) :=
+  let p : HasVar browser "targetValue" (.event ⟶ .io .string) := by repeat constructor
   Lexp.var "targetValue" (se.adaptVar p)
 
-def preventDefault [se : SubEnv react e] : Lexp e (.event ⟶ .io .unit) :=
-  let p : HasVar react "preventDefault" (.event ⟶ .io .unit) := by repeat constructor
+def preventDefault [se : SubEnv browser e] : Lexp e (.event ⟶ .io .unit) :=
+  let p : HasVar browser "preventDefault" (.event ⟶ .io .unit) := by repeat constructor
   Lexp.var "preventDefault" (se.adaptVar p)
-
-def widget [SubEnv react e]
-            (init : Lexp e σ)
-                (body : Lexp (("setState", .base (σ ⟶ .io .unit))
-                               ::("state", .base σ)
-                               :: ("props", .base (.list (.sum ts)))
-                               :: e)
-                              (.node))
-                  : Lexp e (.list (.sum ts) ⟶ .node) :=
-  let p : HasGenVar react "widget" (.parametric2 (λ s p => ((p ⟶ s ⟶ (s ⟶  .io .unit) ⟶ .node) ⟶ s ⟶ p ⟶ .node))) :=
-          by repeat constructor
-  let w : Lexp e ((.list (.sum ts) ⟶ σ ⟶ (σ ⟶  .io .unit) ⟶ .node) ⟶ σ ⟶ .list (.sum ts) ⟶ .node) :=
-            Lexp.parametric2Var "widget" σ (.list (.sum ts)) (SubEnv.adaptVar p)
-  w @@ (func props, state, setState => body) @@ init
 
 abbrev serviceEnv : Env :=
   []
@@ -121,24 +106,7 @@ macro_rules
   | `(#server[$z]{$x}) => `(Server.addService (Server.base $z) $x)
   | `(#server[$z]{$xs:term,*, $x}) => `(Server.addService #server[$z]{$xs,*} $x)
 
-inductive AppPath where
-  | root : AppPath
-
-inductive Router : Env → List AppPath → Type where
-  | nil : Router e []
-  | cons : (p : AppPath) → Lexp e .node → Router e l → Router e (p :: l)
-
-syntax (priority := high) "r[" term,* "]" : term
-macro_rules
-  | `(r[]) => `(Router.nil)
-  | `(r[$x]) => `(let w := $x; Router.cons (w.fst) (w.snd) Router.nil)
-  | `(l[$x, $xs:term,*]) => `(let w := $x; Router.cons (Prod.fst w) (Prod.snd w) r[$xs,*])
-
 inductive ReactApp where
-  | mk : Server σ γ → (paths : List AppPath) → Router react paths → ReactApp
+  | mk : Server σ γ → Lexp browser .node → ReactApp
 
-
-syntax "#app" "[" term "]" "{" term,* "}" : term
-
-macro_rules
-  | `(#app [$z] { $[$x:term],* }) => `( ReactApp.mk $z [ $[Prod.fst $x],* ]  r[ $[$x],* ])
+macro "#app" "[" s:term "]" "{" n:term "}" : term => `(ReactApp.mk $s $n)

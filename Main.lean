@@ -49,7 +49,7 @@ def server := #server [schema]{
 
 
 def app := #app [server] {
-    (.root, text @@ "ola")
+    text @@ "ola"
 }
 
 --#eval genApp app

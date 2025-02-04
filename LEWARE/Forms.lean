@@ -6,6 +6,7 @@ inductive Form : Ltype → Type where
 def formComponentAttrs (α : Ltype) : Ltype :=
   .list (.sum [("defaultValue", α), ("onChange", α ⟶ .io .unit)])
 
+/-
 def makeFormComponents
     [SubEnv react e]
       (form : Form α)
@@ -25,7 +26,7 @@ def makeFormComponents
 
 def formAttrs (α : Ltype) : Ltype :=
   .list (.sum [("defaultValue", α), ("onSubmit", option α ⟶ .unit)])
-
+-/
 /-
 def makeForm (form : Form α)
                   : Lexp react e (formAttrs α ⟶ .node) :=
