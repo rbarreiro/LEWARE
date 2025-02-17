@@ -3,14 +3,12 @@ import LEWARE.Html
 inductive Form : Ltype → Type where
   | simpleString : Form Ltype.string
 
-def formComponentAttrs (α : Ltype) : Ltype :=
+def formAttrs (α : Ltype) : Ltype :=
   .list (.sum [("defaultValue", α), ("onChange", α ⟶ .io .unit)])
 
-/-
-def makeFormComponents
-    [SubEnv react e]
-      (form : Form α)
-        : Lexp e (formComponentAttrs α ⟶ .node) :=
+
+def makeFormComponents [SubEnv browser e] (form : Form α)
+        : Lexp e (formAttrs α ⟶ .node) :=
   func props =>
     match form with
       | .simpleString =>
@@ -24,12 +22,28 @@ def makeFormComponents
               &props
             )
 
-def formAttrs (α : Ltype) : Ltype :=
-  .list (.sum [("defaultValue", α), ("onSubmit", option α ⟶ .unit)])
--/
-/-
-def makeForm (form : Form α)
-                  : Lexp react e (formAttrs α ⟶ .node) :=
+def makeForm [SubEnv browser e] (f : Form α)
+                  : Lexp e (formAttrs α ⟶ .node) :=
   func props =>
-    sorry
--/
+    widget @@
+      (createSignal @@ findTag!(defaultValue, &props)) @@
+      (func sig =>
+        form @@
+          l[ cons(onSubmit, .ldo
+                    {
+                      llet v <- .lastValue @@ &sig..value,
+                      lmatch (&v) lwith{
+                        || some x => (fromOption @@ (func x => .iopure @@ unit) @@ findTag!(onChange, &props)) @@ &x,
+                        || none x => .iopure @@ unit
+                      }
+                    }
+                  )
+          ] @@
+          l[
+            makeFormComponents f @@
+            (
+              l[cons(onChange, func x => &sig..set @@ (some @@ &x))] +++?
+              (LFunctor.map @@ (func x => cons(defaultValue, &x)) @@findTag!(defaultValue, &props))
+            )
+          ]
+      )

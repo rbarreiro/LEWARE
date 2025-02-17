@@ -14,7 +14,7 @@ inductive Ltype where
   | tuple (xs : List Ltype)
   | list (α : Ltype)
   | io (α : Ltype)
-  | istream (α : Ltype)
+  | signal (α : Ltype)
   | record (fs : List (String × Ltype))
   | sum (fs : List (String × Ltype))
   | func (a : Ltype) (b : Ltype)
@@ -76,6 +76,7 @@ mutual
     | listcons : Lexp e (α ⟶ .list α ⟶ .list α)
     | recordnil : Lexp e (Ltype.record [])
     | recordcons : (n : String) → Lexp e α → Lexp e (Ltype.record ts) → Lexp e (Ltype.record ((n, α) :: ts))
+    | recordGet : (n : String) → Lexp e (Ltype.record ts) → HasField ts n α → Lexp e α
     | mk : (n : String) → Lexp e α → (p : HasField ts n α) → Lexp e (Ltype.sum ts)
     | lambda : (n : String) → Lexp ((n, .base α) :: e) β → Lexp e (α ⟶ β)
     | lmatch : Lexp e (.sum ts) → LMatch e ts β → Lexp e β
@@ -90,8 +91,9 @@ mutual
     | elem : Lexp e (α ⟶ .list α ⟶ .boolean)
     | foldl : Lexp e ((α ⟶ β ⟶ β) ⟶ β ⟶ .list α ⟶ β)
     | iopure : Lexp e (α ⟶ .io α)
-    | istreampure : Lexp e (α ⟶ .istream α)
-    | findTag : String → Lexp e (.list (.sum ts)) → HasField ts tag α → Lexp e α → Lexp e α
+    | signalpure : Lexp e (α ⟶ .signal α)
+    | lastValue : Lexp e (.signal α ⟶ .io α)
+    | findTag : String → Lexp e (.list (.sum ts)) → HasField ts tag α → Lexp e (option α)
   deriving Repr
 end
 
@@ -120,6 +122,7 @@ mutual
     | Lexp.listcons => toJson [Json.str "listcons"]
     | Lexp.recordnil => toJson [Json.str "recordnil"]
     | Lexp.recordcons n x xs => toJson [Json.str "recordcons", toJson n, lexpToJson x, lexpToJson xs]
+    | Lexp.recordGet n x p => toJson [Json.str "recordGet", toJson n, lexpToJson x]
     | Lexp.mk n v p => toJson [Json.str "mk", toJson n, lexpToJson v]
     | Lexp.lambda n b => toJson [Json.str "lambda", toJson n, lexpToJson b]
     | Lexp.lmatch x m => toJson [Json.str "lmatch", lexpToJson x, lmatchToJson m]
@@ -134,8 +137,9 @@ mutual
     | Lexp.elem => toJson [Json.str "elem"]
     | Lexp.foldl => toJson [Json.str "foldl"]
     | Lexp.iopure => toJson [Json.str "iopure"]
-    | Lexp.istreampure => toJson [Json.str "istreampure"]
-    | Lexp.findTag t p v d => toJson [Json.str "findTag", toJson t, lexpToJson p, lexpToJson d]
+    | Lexp.signalpure => toJson [Json.str "signalpure"]
+    | Lexp.lastValue => toJson [Json.str "lastValue"]
+    | Lexp.findTag t p v => toJson [Json.str "findTag", toJson t, lexpToJson p]
 end
 
 instance : ToJson (Lexp e α) where
@@ -164,7 +168,7 @@ abbrev the (α : Ltype) (v: Lexp e α ) : Lexp e α :=
 
 macro "llet" n:ident ":::" t:term ":=" v:term ";" b:term : term => `(Lexp.llet $(Lean.quote (toString n.getId)) (the $t ($v)) ($b))
 macro "&(" n:ident ":::" t:term ")" : term => `(the $t (Lexp.var $(Lean.quote (toString n.getId)) (by repeat constructor)))
-
+macro x:term ".." n:ident : term => `(Lexp.recordGet $(Lean.quote (toString n.getId)) $x (by repeat constructor))
 
 syntax (priority := high) "||" ident ident "=>" term : term
 syntax (priority := high) "lwith" "{" term,* "}" : term
@@ -178,8 +182,8 @@ macro "lmatch" "(" x:term ")" y:term : term => `(Lexp.lmatch ($x) ($y))
 instance : Coe String (Lexp e Ltype.string) where
   coe x := .lit (.str x)
 
-instance : Coe String (Lexp e (.istream .string)) where
-  coe x := .istreampure @@ x
+instance : Coe String (Lexp e (.signal .string)) where
+  coe x := .signalpure @@ x
 
 macro c:term "??" t:term ":" e:term : term => `(Lexp.branch @@ $c @@ $t @@ $e)
 
@@ -211,6 +215,7 @@ class LAppend (α : Ltype) where
 
 macro x:term "+++" y:term : term => `(LAppend.lappend @@ $x @@ $y)
 
+
 instance : LEq .string where
   leq := .strEq
 
@@ -233,6 +238,15 @@ macro_rules
   | `(l[]) => `(Lexp.listnil)
   | `(l[$x]) => `(Lexp.listcons @@ $x @@ Lexp.listnil)
   | `(l[$x, $xs:term,*]) => `(Lexp.listcons @@ $x @@ l[$xs,*])
+
+def appendOption : Lexp e (.list α ⟶ option α ⟶ .list α) :=
+  func l, y =>
+    lmatch (&y) lwith {
+      || some x => &l +++ l[&x],
+      || none x => &l
+    }
+
+macro x:term "+++?" y:term : term => `(appendOption @@ $x @@ $y)
 
 def flatMap : Lexp e ((α ⟶ .list β) ⟶ .list α ⟶ .list β) :=
   func f, x =>
@@ -262,5 +276,5 @@ def adaptVarAppend (p : HasGenVar a n α) : HasGenVar (more ++ a) n α :=
 instance [s : SubEnv a b] : SubEnv a (more ++ b) where
   adaptVar x := adaptVarAppend (s.adaptVar x)
 
-macro "findTag!" "(" t:ident "," x:term "," y:term ")" : term =>
-    `(Lexp.findTag $(Lean.quote (toString t.getId)) $x (by repeat constructor) $y)
+macro "findTag!" "(" t:ident "," x:term ")" : term =>
+    `(Lexp.findTag $(Lean.quote (toString t.getId)) $x (by repeat constructor))

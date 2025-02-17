@@ -52,10 +52,5 @@ def app := #app [server] {
     text @@ "ola"
 }
 
---#eval genApp app
-
-def main : IO Unit :=
-  deployApp "localhost" 6401 app
-
 #eval genApp app
---#eval main
+--#eval deployApp "localhost" 6401 app

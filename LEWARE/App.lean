@@ -4,24 +4,26 @@ import Lean.Data.Json
 open Lean
 open Json
 
-def attr : Ltype := .tuple [.string, .sum [("stringAttr", .istream .string), ("eventHandler", .event ⟶ .io .unit)]]
+def attr : Ltype := .tuple [.string, .sum [("stringAttr", .signal .string), ("eventHandler", .event ⟶ .io .unit)]]
 
 
 abbrev insertResTy := Ltype.record [("inserted", .nat)]
 
 abbrev browser : Env :=
   [ ("node", .base (.string ⟶ .list attr ⟶ .list .node ⟶ .node))
-  , ("text", .base (.istream .string ⟶ .node))
+  , ("text", .base (.signal .string ⟶ .node))
   , ("targetValue", .base (.event ⟶ .io .string))
   , ("preventDefault", .base (.event ⟶ .io .unit))
+  , ("widgetWithDestroy", .parametric (λ α => .io α ⟶ (α ⟶ .node) ⟶ (α ⟶ .io .unit) ⟶ .node))
+  , ("createSignal", .parametric (λ α => α ⟶ .io (.record [("set", α ⟶ .io .unit), ("value", .signal α)])))
   ]
 
 def node [se : SubEnv browser e] : Lexp e (.string ⟶ .list attr ⟶ .list .node ⟶ .node) :=
   let p : HasVar browser "node" (.string ⟶ .list attr ⟶ .list .node ⟶ .node) := by repeat constructor
   Lexp.var "node" (se.adaptVar p)
 
-def text [se : SubEnv browser e] : Lexp e (.istream .string ⟶ .node) :=
-  let p : HasVar browser "text" (.istream .string ⟶ .node) := by repeat constructor
+def text [se : SubEnv browser e] : Lexp e (.signal .string ⟶ .node) :=
+  let p : HasVar browser "text" (.signal .string ⟶ .node) := by repeat constructor
   Lexp.var "text" (se.adaptVar p)
 
 def targetValue [se : SubEnv browser e] : Lexp e (.event ⟶ .io .string) :=
@@ -31,6 +33,21 @@ def targetValue [se : SubEnv browser e] : Lexp e (.event ⟶ .io .string) :=
 def preventDefault [se : SubEnv browser e] : Lexp e (.event ⟶ .io .unit) :=
   let p : HasVar browser "preventDefault" (.event ⟶ .io .unit) := by repeat constructor
   Lexp.var "preventDefault" (se.adaptVar p)
+
+def widget [se : SubEnv browser e] : Lexp e (.io α ⟶ (α ⟶ .node) ⟶ .node) :=
+  let p : HasGenVar browser "widgetWithDestroy" (.parametric (λ α => .io α ⟶ (α ⟶ .node) ⟶ (α ⟶ .io .unit) ⟶ .node)) :=
+            by repeat constructor
+  let w : Lexp e (.io α ⟶ (α ⟶ .node) ⟶ (α ⟶ .io .unit) ⟶ .node) :=
+            Lexp.parametricVar "widgetWithDestroy" α (se.adaptVar p)
+  func setup, render =>  (.relax (.relax w)) @@ &setup @@ &render @@ (func x => .iopure @@ unit)
+
+def createSignal [se : SubEnv browser e] : Lexp e (α ⟶ .io (.record [("set", α ⟶ .io .unit), ("value", .signal α)])) :=
+  let p : HasGenVar browser "createSignal"
+    (.parametric (λ α => α ⟶ .io (.record [("set", α ⟶ .io .unit), ("value", .signal α)]))) :=
+            by repeat constructor
+  let w : Lexp e (α ⟶ .io (.record [("set", α ⟶ .io .unit), ("value", .signal α)])) :=
+            Lexp.parametricVar "createSignal" α (se.adaptVar p)
+  w
 
 abbrev serviceEnv : Env :=
   []

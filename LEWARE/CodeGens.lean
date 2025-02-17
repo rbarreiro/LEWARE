@@ -55,20 +55,16 @@ def genServices (server : Server sch srvs) : List Json :=
 
 def runtime : String :=
   "
-    function lexp_istreampure(x) {
-      return (callback => callback(x));
-    }
+    const lexp_signalpure = x => ({subscribe: callback => callback(x), lastValue: () => x});
+    const text = x => Immutable.Map({k: \"text\", v: x});
 
-    function text(x) {
-      return Imutable.Map({k: \"text\", v: x});
-    }
 
     function makeNode(x){
-      switch(x.get(k)){
-        case \"text\":
+      switch(x.get('k')){
+        case 'text':
           const n = document.createTextNode(\"\");
-          x.get(v)((y) => n.nodeValue = y);
-          return n
+          x.get('v')((y) => n.nodeValue = y);
+          return (n, () => n.remove());
         default:
           throw \"Invalid node\";
       }
@@ -88,7 +84,8 @@ def clientTemplate (client : String) : String :=
     </script>
     <script>" ++ runtime ++ "\n\n" ++
       "const mainNode =" ++ client ++ ";
-      document.body.appendChild(makeNode(mainNode));
+      const [n, r] = makeNode(mainNode);
+      document.body.appendChild(n);
     </script>
   </body>
   </html>
@@ -136,6 +133,9 @@ mutual
         let x_ := genJS x
         let xs_ := genJS xs
         s!"{xs_}.set(\"{n}\", {x_})"
+    | .recordGet n x _ =>
+        let x_ := genJS x
+        s!"{x_}.get(\"{n}\")"
     | .mk n x _ =>
         let x_ := genJS x
         "{" ++ s!"k : {escapeString n}, v: {x_}" ++ "}"
@@ -164,12 +164,13 @@ mutual
       "lexp_foldl"
     | .iopure =>
       "lexp_iopure"
-    | .istreampure =>
-      "lexp_istreampure"
-    | .findTag tag props _ default =>
+    | .signalpure =>
+      "lexp_signalpure"
+    | .lastValue =>
+      "lexp_lastValue"
+    | .findTag tag props _ =>
         let props_ := genJS props
-        let default_ := genJS default
-        s!"lexp_findTag({escapeString tag}, {props_}, {default_})"
+        s!"lexp_findTag({escapeString tag}, {props_})"
 end
 
 def genApp (app : ReactApp) : GeneratedApp :=
